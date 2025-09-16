@@ -1,5 +1,6 @@
 import random
 import sys
+import unittest
 sys.path.append("..")  #so other modules can be found in parent dir
 from Player import *
 from Constants import *
@@ -8,6 +9,7 @@ from Ant import UNIT_STATS
 from Move import Move
 from GameState import *
 from AIPlayerUtils import *
+
 
 ##
 # Node Class
@@ -43,7 +45,7 @@ class AIPlayer(Player):
     #   cpy           - whether the player is a copy (when playing itself)
     ##
     def __init__(self, inputPlayerId):
-        super(AIPlayer,self).__init__(inputPlayerId, "Random2")
+        super(AIPlayer,self).__init__(inputPlayerId, "Random")
    
     ##
     #getPlacement
@@ -132,15 +134,19 @@ class AIPlayer(Player):
        
         # Score for number of ants
         ant_score = len(myInv.ants) - len(enemyInv.ants)
-       
+
         # Score for anthill health
-        my_anthill_health = myInv.getAnthill().captureHealth
-        enemy_anthill_health = enemyInv.getAnthill().captureHealth
+        myAnthills = getConstrList(currentState, pid=self.playerId, types=(ANTHILL,))
+        enemyAnthills = getConstrList(currentState, pid=1 - self.playerId, types=(ANTHILL,))
+
+        my_anthill_health = myAnthills[0].captureHealth if myAnthills else 0
+        enemy_anthill_health = enemyAnthills[0].captureHealth if enemyAnthills else 0
+
         anthill_score = enemy_anthill_health - my_anthill_health
        
         # Score for tunnel health
-        my_tunnels = getTunnels(myInv)
-        enemy_tunnels = getTunnels(enemyInv)
+        my_tunnels = Inventory.getTunnels(myInv)
+        enemy_tunnels = Inventory.getTunnels(enemyInv)
         tunnel_score = 0
         if my_tunnels and enemy_tunnels:
             tunnel_score = enemy_tunnels[0].captureHealth - my_tunnels[0].captureHealth
@@ -154,30 +160,136 @@ class AIPlayer(Player):
         # Clamp the value to be within 0 and 1
         return max(0, min(1, normalized_score))
 
-    def bestMove(self,nodeList):
-        # evaluate head of list, set to bestNode
-        bestNode = nodeList[0]
-        # evaluate next
-        for node in nodeList[1:]:
-            if node['evaluation'] > bestNode['evaluation']:
-                bestNode = node
+    def createNode(self,parentNode,move):
+    
+        # move parent to next state
+        nextState = getNextState(parentNode, move)
+        
+        # how many moves away next state is from current state
+        depth = 1
 
+        # evaluate next state
+        evaluation = self.utility(nextState)
+
+
+        # return node as dictionary
+        return {
+            'move':move,
+            'state':nextState,
+            'depth':depth,
+            'evaluation':evaluation,
+            'parent': parentNode
+        }
+    
+        ##
+    #getMove
+    #Description: Gets the next move from the Player.
+    #
+    #Parameters:
+    #   currentState - The state of the current game waiting for the player's move (GameState)
+    #
+    #Return: The Move to be made
+    ##
+    def getMove(self, currentState):
+        moves = listAllLegalMoves(currentState)
+        nodes = []
+
+        for move in moves:
+            nextState = getNextState(currentState, move)
+            evaluation = self.utility(nextState)
+            node = Node(move=move, state=nextState, depth=1, evaluation=evaluation, parent=None)
+            nodes.append(node)
+
+        bestNode = self.getBestNode(nodes)
+        return bestNode.move if bestNode else Move(END, None, None)
+
+
+    ##
+    # getBestNode
+    # Description: Helper method to find the node with the highest evaluation from a list of nodes.
+    # Parameters:
+    #   nodes - A list of Node objects.
+    # Return: The Node object with the highest evaluation.
+    ##
+    def getBestNode(self, nodes):
+        if not nodes:
+            return None
+        
+        bestNode = nodes[0]
+        for node in nodes:
+            # Check for a better evaluation
+            if node.evaluation > bestNode.evaluation:
+                bestNode = node
+            # Simple tie-breaking to avoid cyclical behavior.
+            elif node.evaluation == bestNode.evaluation and random.random() > 0.5:
+                bestNode = node
         return bestNode
     
-    def getMove(self, currentState):
-        # generate a list of all possible moves
-        possibleMoves = listAllLegalMoves(currentState)
-
-        # create node list
-        nodeList = []
-
-        for move in possibleMoves:
-            node = self.createNode(currentState, move)
-            nodeList.append(node)
-
-        bestNode = self.bestMove(nodeList)
-
-        return bestNode['move']
-
     def registerWin(self, hasWon):
         pass
+
+    @staticmethod
+    def makeTestState():
+        return GameState.getBasicState()
+
+class TestAIPlayer(unittest.TestCase):
+    # create mock test set up
+    def setUp(self):
+        # mock ai
+        self.agent = AIPlayer(0)
+        # mock game state
+        self.state = AIPlayer.makeTestState()
+
+# utility function should return a value between 0-1
+def test_utility_range(self):
+    score = self.agent.utility(self.state)
+    
+    # score is not below 0
+    self.assertGreaterEqual(score, 0)
+    
+    # score is not above 1
+    self.assertLessEqual(score, 1)
+
+# createNode should return a valid dictionary
+def test_create_node_structure(self):
+    # mock move
+    move = Move(MOVE_ANT, (0, 0), (1, 1))
+    
+    # create node from the current state and move
+    node = self.agent.createNode(self.state, move)
+    
+    # ensure all keys are in dictionary
+    self.assertIn('move', node)
+    self.assertIn('state', node)
+    self.assertIn('evaluation', node)
+    self.assertIn('depth', node)
+    self.assertIn('parent', node)
+
+# getBestNode should select node with highest utility
+def test_best_node_selection(self):
+    # generate two mock moves
+    move1 = Move(MOVE_ANT, (0, 0), (1, 1))
+    move2 = Move(MOVE_ANT, (0, 0), (2, 2))
+    
+    # get next state from each move
+    state1 = getNextState(self.state, move1)
+    state2 = getNextState(self.state, move2)
+    
+    # create nodes with utility scores
+    node1 = Node(move1, state1, 1, self.agent.utility(state1), None)
+    node2 = Node(move2, state2, 1, self.agent.utility(state2), None)
+    
+    # use bestNode to get highest score
+    best = self.agent.getBestNode([node1, node2])
+    
+    # ensure it's a valid node
+    self.assertIsInstance(best, Node)
+    
+    # ensure it's a valid move
+    self.assertIn(best.move, [move1, move2])
+
+
+
+
+if __name__ == "__main__":
+    unittest.main()
