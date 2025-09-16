@@ -100,64 +100,6 @@ class AIPlayer(Player):
             return [(0, 0)]
    
     ##
-    #getMove
-    #Description: Gets the next move from the Player.
-    #
-    #Parameters:
-    #   currentState - The state of the current game waiting for the player's move (GameState)
-    #
-    #Return: The Move to be made
-    ##
-    def getMove(self, currentState):
-        # Create a list of legal moves
-        moves = listAllLegalMoves(currentState)
-       
-        # Create a list to hold the nodes
-        nodes = []
-       
-        # Iterate through all legal moves
-        for move in moves:
-            # Create a fast clone of the current state
-            nextState = currentState.fastclone()
-           
-            # Make the move on the cloned state
-            nextState.makeMove(move)
-           
-            # Create a new Node object
-            evaluation = self.utility(nextState) + 1
-            node = Node(move=move, state=nextState, depth=1, evaluation=evaluation, parent=None)
-           
-            # Add the node to the list
-            nodes.append(node)
-       
-        # Select the node with the highest evaluation using a helper method
-        bestNode = self.getBestNode(nodes)
-       
-        # Return the move from the best node
-        return bestNode.move
-
-    ##
-    # getBestNode
-    # Description: Helper method to find the node with the highest evaluation from a list of nodes.
-    # Parameters:
-    #   nodes - A list of Node objects.
-    # Return: The Node object with the highest evaluation.
-    ##
-    def getBestNode(self, nodes):
-        if not nodes:
-            return None
-        
-        bestNode = nodes[0]
-        for node in nodes:
-            # Check for a better evaluation
-            if node.evaluation > bestNode.evaluation:
-                bestNode = node
-            # Simple tie-breaking to avoid cyclical behavior.
-            elif node.evaluation == bestNode.evaluation and random.random() > 0.5:
-                bestNode = node
-        return bestNode
-   
-    ##
     #getAttack
     #Description: Gets the attack to be made from the Player
     #
@@ -211,6 +153,31 @@ class AIPlayer(Player):
         
         # Clamp the value to be within 0 and 1
         return max(0, min(1, normalized_score))
+
+    def bestMove(self,nodeList):
+        # evaluate head of list, set to bestNode
+        bestNode = nodeList[0]
+        # evaluate next
+        for node in nodeList[1:]:
+            if node['evaluation'] > bestNode['evaluation']:
+                bestNode = node
+
+        return bestNode
+    
+    def getMove(self, currentState):
+        # generate a list of all possible moves
+        possibleMoves = listAllLegalMoves(currentState)
+
+        # create node list
+        nodeList = []
+
+        for move in possibleMoves:
+            node = self.createNode(currentState, move)
+            nodeList.append(node)
+
+        bestNode = self.bestMove(nodeList)
+
+        return bestNode['move']
 
     def registerWin(self, hasWon):
         pass
